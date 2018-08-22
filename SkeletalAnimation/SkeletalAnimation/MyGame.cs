@@ -7,16 +7,27 @@ using Urho.Shapes;
 
 namespace SkeletalAnimation
 {
+    /// <summary>
+    /// Um teste de como se usa animação esqueletal.
+    /// A primeira etapa é fazer o original funcionar.
+    /// A segunda etapa é eu mesmo criar uma animação e ela ser usada.
+    ///
+    /// //TODO: Criar minha propria animação e usá-la
+    /// </summary>
     public class MyGame : Application
     {
-        Node cameraNode;
-        Node earthNode;
-        Node rootNode;
-        Scene scene;
-        float yaw, pitch;
+        //modelMoveSpeed, modelRotateSpeed, bounds
+        public float ModelMoveSpeed { get; set; }
+        public float ModelRotationSpeed { get; set; }
+        public BoundingBox Bounds { get; private set; }
+        private Node CameraNode;
+        private Camera camera;
+        private Node Dude;
 
         [Preserve]
         public MyGame(ApplicationOptions options) : base(options) { }
+
+        private Scene _scene;
 
         static MyGame()
         {
@@ -31,164 +42,139 @@ namespace SkeletalAnimation
         protected override async void Start()
         {
             base.Start();
-
-            // UI text 
-            var helloText = new Text(Context);
-            helloText.Value = "Hello World from UrhoSharp";
-            helloText.HorizontalAlignment = HorizontalAlignment.Center;
-            helloText.VerticalAlignment = VerticalAlignment.Top;
-            helloText.SetColor(new Color(r: 0.5f, g: 1f, b: 1f));
-            helloText.SetFont(font: CoreAssets.Fonts.AnonymousPro, size: 30);
-            UI.Root.AddChild(helloText);
-
-            // 3D scene with Octree
-            scene = new Scene(Context);
-            scene.CreateComponent<Octree>();
-
-            // Create a node for the Earth
-            rootNode = scene.CreateChild();
-            rootNode.Position = new Vector3(0, 0, 20);
-            earthNode = rootNode.CreateChild();
-            earthNode.SetScale(5f);
-            earthNode.Rotation = new Quaternion(0, 180, 0);
-
-            // Create a static model component - Sphere:
-            var earth = earthNode.CreateComponent<Sphere>();
-            earth.SetMaterial(ResourceCache.GetMaterial("Materials/Earth.xml")); // or simply Material.FromImage("Textures/Earth.jpg")
-
-            // Same steps for the Moon
-            var moonNode = earthNode.CreateChild();
-            moonNode.SetScale(0.27f); // Relative size of the Moon is 1738.1km/6378.1km
-            moonNode.Position = new Vector3(1.2f, 0, 0);
-            var moon = moonNode.CreateComponent<Sphere>();
-            moon.SetMaterial(Material.FromImage("Textures/Moon.jpg"));
-
-            // Clouds
-            var cloudsNode = earthNode.CreateChild();
-            cloudsNode.SetScale(1.02f);
-            var clouds = cloudsNode.CreateComponent<Sphere>();
-            var cloudsMaterial = new Material();
-            cloudsMaterial.SetTexture(TextureUnit.Diffuse, ResourceCache.GetTexture2D("Textures/Earth_Clouds.jpg"));
-            cloudsMaterial.SetTechnique(0, CoreAssets.Techniques.DiffAddAlpha);
-            clouds.SetMaterial(cloudsMaterial);
-
-            // Light
-            Node lightNode = scene.CreateChild();
-            var light = lightNode.CreateComponent<Light>();
-            light.LightType = LightType.Directional;
-            light.Range = 20;
-            light.Brightness = 1f;
-            lightNode.SetDirection(new Vector3(1f, -0.25f, 1.0f));
-
-            // Camera
-            cameraNode = scene.CreateChild();
-            var camera = cameraNode.CreateComponent<Camera>();
-
-            // Viewport
-            var viewport = new Viewport(Context, scene, camera, null);
-            Renderer.SetViewport(0, viewport);
-            //viewport.RenderPath.Append(CoreAssets.PostProcess.FXAA2);
-
-            Input.Enabled = true;
-            // FPS
-            new MonoDebugHud(this).Show(Color.Green, 25);
-
-            // Stars (Skybox)
-            var skyboxNode = scene.CreateChild();
-            var skybox = skyboxNode.CreateComponent<Skybox>();
-            skybox.Model = CoreAssets.Models.Box;
-            skybox.SetMaterial(Material.SkyboxFromImage("Textures/Space.png"));
-
-            // Run a an action to spin the Earth (7 degrees per second)
-            rootNode.RunActions(new RepeatForever(new RotateBy(duration: 1f, deltaAngleX: 0, deltaAngleY: -7, deltaAngleZ: 0)));
-            // Spin clouds:
-            cloudsNode.RunActions(new RepeatForever(new RotateBy(duration: 1f, deltaAngleX: 0, deltaAngleY: 1, deltaAngleZ: 0)));
-            // Zoom effect:
-            await rootNode.RunActionsAsync(new EaseOut(new MoveTo(0.5f, new Vector3(0, 0, 12)), 1));
-
-            AddCity(0, 0, "(0, 0)");
-            AddCity(53.9045f, 27.5615f, "Minsk");
-            AddCity(51.5074f, 0.1278f, "London");
-            AddCity(40.7128f, -74.0059f, "New-York");
-            AddCity(37.7749f, -122.4194f, "San Francisco");
-            AddCity(39.9042f, 116.4074f, "Beijing");
-            AddCity(-31.9505f, 115.8605f, "Perth");
-        }
-        public void AddCity(float lat, float lon, string name)
-        {
-            var height = earthNode.Scale.Y / 2f;
-
-            lat = (float)Math.PI * lat / 180f - (float)Math.PI / 2f;
-            lon = (float)Math.PI * lon / 180f;
-
-            float x = height * (float)Math.Sin(lat) * (float)Math.Cos(lon);
-            float z = height * (float)Math.Sin(lat) * (float)Math.Sin(lon);
-            float y = height * (float)Math.Cos(lat);
-
-            var markerNode = rootNode.CreateChild();
-            markerNode.Scale = Vector3.One * 0.1f;
-            markerNode.Position = new Vector3((float)x, (float)y, (float)z);
-            markerNode.CreateComponent<Sphere>();
-            markerNode.RunActionsAsync(new RepeatForever(
-                new TintTo(0.5f, Color.White),
-                new TintTo(0.5f, Randoms.NextColor())));
-
-            var textPos = markerNode.Position;
-            textPos.Normalize();
-
-            var textNode = markerNode.CreateChild();
-            textNode.Position = textPos * 2;
-            textNode.SetScale(3f);
-            textNode.LookAt(Vector3.Zero, Vector3.Up, TransformSpace.Parent);
-            var text = textNode.CreateComponent<Text3D>();
-            text.SetFont(CoreAssets.Fonts.AnonymousPro, 150);
-            text.EffectColor = Color.Black;
-            text.TextEffect = TextEffect.Shadow;
-            text.Text = name;
+            CreateWorld();
         }
 
         protected override void OnUpdate(float timeStep)
         {
-            MoveCameraByTouches(timeStep);
-            SimpleMoveCamera3D(timeStep);
             base.OnUpdate(timeStep);
+            CameraNode.LookAt(Dude.Position, new Vector3(0, 1, 0));
+        }
+
+        private void CreateWorld()
+        {
+            Bounds = new BoundingBox(new Vector3(-47.0f, 0.0f, -47.0f), new Vector3(47.0f, 0.0f, 47.0f));
+            ModelMoveSpeed = 2.0f;
+            ModelRotationSpeed = 100.0f;
+
+            _scene = CreateScene();            
+            CreatePlane(_scene);
+            CreateZone(_scene);
+            CreateDirectionalLight(_scene);
+            Dude = CreateDude(_scene);
+            CreateCamera(_scene);
+
+            this.Renderer.SetViewport(0, new Viewport(Context, _scene, camera, null));
+        }
+        /// <summary>
+        /// Onde eu crio a câmera
+        /// </summary>
+        /// <param name="scene"></param>
+        private void CreateCamera(Scene scene)
+        {
+            CameraNode = scene.CreateChild("Camera");
+            camera = CameraNode.CreateComponent<Camera>();
+            camera.FarClip = 300;
+            // Set an initial position for the camera scene node above the plane
+            CameraNode.Position = new Vector3(0.0f, 5.0f, 0.0f);
+        }
+
+        
+        /// <summary>
+        /// Onde eu crio o maluco que fica andando pelo mapa, animado por uma aniamação esqueletal
+        /// </summary>
+        /// <param name="scene"></param>
+        private Node CreateDude(Scene scene)
+        {
+            var cache = this.ResourceCache;
+            var modelNode = scene.CreateChild("Jack");
+            modelNode.Position = new Vector3(0,0,0);
+            modelNode.Rotation = new Quaternion(0, 0, 0);
+            //var modelObject = modelNode.CreateComponent<AnimatedModel>();
+            var modelObject = new AnimatedModel();
+            modelNode.AddComponent(modelObject);
+            modelObject.Model = cache.GetModel("Models/Jack.mdl");
+            //modelObject.Material = cache.GetMaterial("Materials/Jack.xml");
+            modelObject.CastShadows = true;
+
+            // Create an AnimationState for a walk animation. Its time position will need to be manually updated to advance the
+            // animation, The alternative would be to use an AnimationController component which updates the animation automatically,
+            // but we need to update the model's position manually in any case
+            var walkAnimation = cache.GetAnimation("Models/Jack_Walk.ani");
+            var state = modelObject.AddAnimationState(walkAnimation);
+            // The state would fail to create (return null) if the animation was not found
+            if (state != null)
+            {
+                // Enable full blending weight and looping
+                state.Weight = 1;
+                state.Looped = true;
+            }
+
+            // Create our custom Mover component that will move & animate the model during each frame's update
+            var mover = new Mover(ModelMoveSpeed, ModelRotationSpeed, Bounds);
+            modelNode.AddComponent(mover);
+            return modelNode;
+        }
+
+ 
+
+        /// <summary>
+        /// Onde eu crio a luz direcional, com sombras ativas
+        /// </summary>
+        /// <param name="scene"></param>
+        private void CreateDirectionalLight(Scene scene)
+        {
+            var lightNode = scene.CreateChild("DirectionalLight");
+            lightNode.SetDirection(new Vector3(0.6f, -1.0f, 0.8f));
+            var light = lightNode.CreateComponent<Light>();
+            light.LightType = LightType.Directional;
+            light.CastShadows = true;
+            light.ShadowBias = new BiasParameters(0.00025f, 0.5f);
+            light.ShadowCascade = new CascadeParameters(10.0f, 50.0f, 200.0f, 0.0f, 0.8f);
+        }
+
+
+
+        /// <summary>
+        /// Cria uma Zona. Uma zona é uma região com luz ambiente e névoa própria
+        /// </summary>
+        /// <param name="scene"></param>
+        private void CreateZone(Scene scene)
+        {
+            var zoneNode = scene.CreateChild("Zone");
+            var zone = zoneNode.CreateComponent<Zone>();
+            zone.SetBoundingBox(new BoundingBox(-1000.0f, 1000.0f));//O tamanho default da octree é 1000x1000
+            zone.AmbientColor = new Color(0.15f, 0.15f, 0.15f);
+            zone.FogColor = new Color(0.5f, 0.5f, 0.7f);
+            zone.FogStart = 100;
+            zone.FogEnd = 300;
         }
 
         /// <summary>
-        /// Move camera for 3D samples
+        /// É aqui que eu crio o plano onde os bonecos vão andar.
         /// </summary>
-        protected void SimpleMoveCamera3D(float timeStep, float moveSpeed = 10.0f)
+        /// <param name="scene"></param>
+        void CreatePlane(Scene scene)
         {
-            if (!Input.GetMouseButtonDown(MouseButton.Left))
-                return;
-
-            const float mouseSensitivity = .1f;
-            var mouseMove = Input.MouseMove;
-            yaw += mouseSensitivity * mouseMove.X;
-            pitch += mouseSensitivity * mouseMove.Y;
-            pitch = MathHelper.Clamp(pitch, -90, 90);
-            cameraNode.Rotation = new Quaternion(pitch, yaw, 0);
+            var cache = this.ResourceCache;
+            var planeNode = scene.CreateChild("Plane");
+            planeNode.Scale = new Vector3(100, 1, 100);
+            var planeObject = planeNode.CreateComponent<StaticModel>();
+            planeObject.Model = cache.GetModel("Models/Plane.mdl");
+            planeObject.SetMaterial(cache.GetMaterial("Materials/Grass.xml"));
         }
 
-        protected void MoveCameraByTouches(float timeStep)
+        /// <summary>
+        /// Cria o objeto de cena.
+        /// </summary>
+        /// <returns></returns>
+        private Scene CreateScene()
         {
-            const float touchSensitivity = 2f;
-
-            var input = Input;
-            for (uint i = 0, num = input.NumTouches; i < num; ++i)
-            {
-                TouchState state = input.GetTouch(i);
-                if (state.Delta.X != 0 || state.Delta.Y != 0)
-                {
-                    var camera = cameraNode.GetComponent<Camera>();
-                    if (camera == null)
-                        return;
-
-                    yaw += touchSensitivity * camera.Fov / Graphics.Height * state.Delta.X;
-                    pitch += touchSensitivity * camera.Fov / Graphics.Height * state.Delta.Y;
-                    cameraNode.Rotation = new Quaternion(pitch, yaw, 0);
-                }
-            }
+            var s = new Scene();
+            s.CreateComponent<Octree>();
+            s.CreateComponent<DebugRenderer>();
+            return s;
         }
+
     }
 }
